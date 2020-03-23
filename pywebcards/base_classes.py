@@ -24,6 +24,7 @@ class BaseCard:
     can_be_played_on: list = None
 
     def __str__(self):
+        # Some decks would call it "{face} of {suit}" others might call it "{suit} {face}" so just leave that for the subclass
         raise NotImplementedError("Must be defined for the specific game cards")
 
 

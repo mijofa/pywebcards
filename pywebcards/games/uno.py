@@ -30,7 +30,11 @@ class Faces(base_classes.BaseFaces):
 
 
 class Card(base_classes.BaseCard):
-    pass
+    def __str__(self):
+        if self.suit is Suits.Black:
+            return self.face.value
+        else:
+            return f"{self.suit.name} {self.face.value}".capitalize()
 
 
 class GameDeck(base_classes.BaseGameDeck):
@@ -53,12 +57,10 @@ class GameDeck(base_classes.BaseGameDeck):
                 ))
 
         # There's 4 of each black/wild
-        self.extend((
-            Card(face=Faces.Wild, suit=Suits.Black, can_be_played_on=list(Faces) + list(Suits)) for i in range(0, 4)
-        ))
-        self.extend((
-            Card(face=Faces.WildDrawFour, suit=Suits.Black, can_be_played_on=list(Faces) + list(Suits)) for i in range(0, 4)
-        ))
+        for face in (Faces.Wild, Faces.WildDrawFour):
+            self.extend((
+                Card(face=face, suit=Suits.Black, can_be_played_on=list(Faces) + list(Suits)) for i in range(0, 4)
+            ))
 
         # An Uno deck has 108 cards in it
         assert len(self) == 108
