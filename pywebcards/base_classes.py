@@ -16,16 +16,38 @@ class BaseFaces(enum.Enum):
     pass
 
 
+class TurnOrder(enum.IntEnum):
+    """Turn Order, it shouldn't really need subclassing"""
+    # Player 0, 1, 2, 3
+    Clockwise = 1
+    Forward = 1
+    Ascending = 1
+    # Player 3, 2, 1, 0
+    CounterClockwise = -1
+    Backward = -1
+    Descending = -1
+
+
 @dataclasses.dataclass
 class BaseCard:
     """Cards used to make up the deck"""
     face: str
     suit: str
-    can_be_played_on: list = None
 
+    @abc.abstractmethod
     def __str__(self):
         # Some decks would call it "{face} of {suit}" others might call it "{suit} {face}" so just leave that for the subclass
-        raise NotImplementedError("Must be defined for the specific game cards")
+        super().__str__()
+
+    @abc.abstractmethod
+    def can_play(self, game):
+        """Returns true if this card can be played now"""
+        pass
+
+    @abc.abstractmethod
+    def play(self, game, player):
+        if not self.can_play(game=game):
+            raise NotImplementedError()
 
 
 class BaseGameDeck(collections.UserList):
@@ -53,9 +75,19 @@ class BaseStack(collections.UserList):
         for i in range(0, amount):
             yield self.pop()
 
+    def __str__(self):
+        return f"Stack of {len(self)} cards"
+
 
 class BaseHand(BaseStack):
-    pass
+    def __init__(self, player):
+        # FIXME: Should player hands always start empty?
+        super().__init__()
+
+        self.player = player
+
+    def __str__(self):
+        return f"{self.player.nickname}'s hand containing {len(self)} cards"
 
 
 class BasePlayer(object):
@@ -64,45 +96,82 @@ class BasePlayer(object):
         self.nickname = nickname
         self.uid = uuid.uuid4()
 
-        # Cards currently in hand
-        self.current_hand = None
+        self.hand = None
+
+    def __repr__(self):
+        return f"<{self.__class__.__module__}.{self.__class__.__name__} object for '{self.nickname}'>"
 
 
 class BaseGame(object):
     """Base game object, this is where all the game rules logic goes"""
+    ## Static game rule variables
+    # Minimum number of players required for a match
+    min_players = None
+    # Maximum number of players allowed per match
+    # NOTE: use math.inf if there is no limit
+    max_players = None
+
     def __init__(self):
-        ## Static game rule variables
-        # Minimum number of players required for a match
-        self.min_players = None
-        # Maximum number of players allowed per match
-        # NOTE: use math.inf if there is no limit
-        self.max_players = None
 
         ## Active game variables
         # player objects for each player currently in match
         self.players = []
-        # Number of players currently in match
-        # Should equal len(self.players)
-        self.num_players = 0
         # Who's turn is it
         self.current_player = None
+        # Current turn order
+        self.turn_order = TurnOrder.Clockwise
         # Pile of cards that haven't been played
         self.unplayed_stack = None
         # Pile of cards that have been played
         # NOTE: Must remain ordered
         self.played_stack = None
 
+    @abc.abstractmethod
+    def _create_new_hand(self, player: BasePlayer):
+        """Returns a new hand for the given player"""
+        return BaseHand(player)
+
+    @abc.abstractmethod
+    def _deal_hands(self):
+        """Deal player's hands out"""
+        pass
+
+    @abc.abstractmethod
+    def _other_actions(self, player, action):
+        """Perform an action that isn't a card from the deck"""
+        pass
+
     def add_player(self, player: BasePlayer):
         # Don't add more than the max players
-        if (self.num_players + 1) <= self.max_players:
+        if (len(self.players) + 1) <= self.max_players:
             self.players.append(player)
-            self.num_players += 1
-
-            assert len(self.players) == self.num_players
-
-            return True
+            player.hand = self._create_new_hand(player)
         else:
             raise NotImplementedError('FIXME')
 
     def drop_player(self, player: BasePlayer):
         raise NotImplementedError('FIXME')
+
+    @abc.abstractmethod
+    def start_game(self):
+        if not self.min_players <= len(self.players) <= self.max_players:
+            raise NotImplementedError("FIXME")
+
+    def next_turn(self):
+        # Add the turn_order value to the current player number
+        print("Going to next player")
+        # Make the index wraparound
+        next_player_num = (self.players.index(self.current_player) + self.turn_order.value) % len(self.players)
+        self.current_player = self.players[next_player_num]
+
+    def play_turn(self, player, card):
+        assert player == self.current_player
+        assert card in player.hand
+        assert card.can_play(game=self)
+
+        if isinstance(card, BaseCard):
+            card.play(game=self, player=player)
+        else:
+            self._other_actions(player=player, action=card)
+
+        self.next_turn()
