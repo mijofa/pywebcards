@@ -4,7 +4,7 @@ from . import app
 app.debug = True
 app.run(
     # Threading must be enabled for the turn based multiplayer to send synchronous status updates to all players
-    threading=True,
+    threaded=True,
     # I didn't bother trying to entirely understand it, but inotify reloader fails when importing from current directory.
     # https://github.com/pallets/flask/issues/1246
     # https://github.com/pallets/werkzeug/issues/461
